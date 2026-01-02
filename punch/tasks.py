@@ -3,6 +3,7 @@ import datetime
 import os
 import re
 
+
 @dataclass
 class TaskEntry:
     finish: datetime.datetime
@@ -11,8 +12,10 @@ class TaskEntry:
     notes: str
     duration: datetime.timedelta
 
-SEPARATOR = '|'
-CMDLINE_SEPARATOR = ':'
+
+SEPARATOR = "|"
+CMDLINE_SEPARATOR = ":"
+
 
 def escape_separators(s, sep=CMDLINE_SEPARATOR):
     """
@@ -24,12 +27,14 @@ def escape_separators(s, sep=CMDLINE_SEPARATOR):
     # Replace ":" with "\:" only if not at the start or end
     return s[0] + s[1:-1].replace(sep, rf"\{sep}") + s[-1]
 
+
 def split_unescaped(s: str, sep: str) -> list[str]:
     # Pattern: separator not preceded by an odd number of backslashes
-    pattern = rf'(?<!\\){sep}'
+    pattern = rf"(?<!\\){sep}"
     parts = re.split(pattern, s)
     # Replace escaped separators (e.g. "\,") with the literal separator
-    return [p.replace(f'\\{sep}', sep) for p in parts]
+    return [p.replace(f"\\{sep}", sep) for p in parts]
+
 
 def read_tasklog(taskfile, count_lines=False):
     """
@@ -44,7 +49,7 @@ def read_tasklog(taskfile, count_lines=False):
     line_count = 0
     prev_finish = None
     try:
-        with open(taskfile, 'r') as f:
+        with open(taskfile, "r") as f:
             for line in f:
                 line_count += 1
                 entry = parse_task(line, line_count)
@@ -60,19 +65,23 @@ def read_tasklog(taskfile, count_lines=False):
                 else:
                     duration = datetime.timedelta(0)
                 # Create a new TaskEntry with the correct duration
-                entry = TaskEntry(entry.finish, entry.category, entry.task, entry.notes, duration)
+                entry = TaskEntry(
+                    entry.finish, entry.category, entry.task, entry.notes, duration
+                )
                 tasklog.append(entry)
                 prev_entry_by_day[day] = entry
     except FileNotFoundError:
         pass
     # Remove tasks ending with '**' and with duration == 0
     tasklog = [
-        entry for entry in tasklog
+        entry
+        for entry in tasklog
         if entry.duration.total_seconds() > 0 and not entry.task.endswith("**")
     ]
     if count_lines:
         return tasklog, line_count
     return tasklog
+
 
 def parse_task(line, line_no=-1):
     parts = line.strip().split(SEPARATOR)
@@ -89,8 +98,9 @@ def parse_task(line, line_no=-1):
         finish_str, category, task, notes = parts[:4]
     else:
         raise ValueError(f"Invalid task entry format: line {line_no}: {line.strip()}")
-    finish = datetime.datetime.strptime(finish_str.strip(), '%Y-%m-%d %H:%M')
+    finish = datetime.datetime.strptime(finish_str.strip(), "%Y-%m-%d %H:%M")
     return TaskEntry(finish, category, task, notes, duration=datetime.timedelta(0))
+
 
 def get_recent_tasks(taskfile, category):
     """
@@ -105,6 +115,7 @@ def get_recent_tasks(taskfile, category):
             seen.add(entry.task)
     return recent_tasks
 
+
 def write_task(taskfile, category, task, notes, finish=None):
     """
     Writes a new task entry to the task log.
@@ -115,7 +126,7 @@ def write_task(taskfile, category, task, notes, finish=None):
     # Ensure the target directory exists
     os.makedirs(os.path.dirname(taskfile), exist_ok=True)
 
-    entry_parts = [finish.strftime('%Y-%m-%d %H:%M')]
+    entry_parts = [finish.strftime("%Y-%m-%d %H:%M")]
     if category:
         entry_parts.append(category)
     entry_parts.append(task)
@@ -125,8 +136,9 @@ def write_task(taskfile, category, task, notes, finish=None):
         line += f" {SEPARATOR} {notes.strip()}"
     line += "\n"
 
-    with open(taskfile, 'a') as f:
+    with open(taskfile, "a") as f:
         f.write(line)
+
 
 def parse_new_task_string(task_string, categories):
     """
@@ -151,11 +163,16 @@ def parse_new_task_string(task_string, categories):
             case [task, notes]:
                 return TaskEntry(finish, "", task, notes, duration)
             case _:
-                raise ValueError("Invalid format for category-less task ending with '*'")
+                raise ValueError(
+                    "Invalid format for category-less task ending with '*'"
+                )
 
     # Otherwise, expect <short-category> : <task-name> [: <task-notes>]
     parts = split_unescaped(task_string, CMDLINE_SEPARATOR)
-    parts = [p.replace(r'\:', ':').replace(f"\\{SEPARATOR}", SEPARATOR).strip() for p in parts]
+    parts = [
+        p.replace(r"\:", ":").replace(f"\\{SEPARATOR}", SEPARATOR).strip()
+        for p in parts
+    ]
 
     match parts:
         case [input_category, task]:
@@ -163,10 +180,12 @@ def parse_new_task_string(task_string, categories):
         case [input_category, task, notes]:
             pass
         case _:
-            raise ValueError("Task string must be in the format '<short-category> : <task-name> [: <task-notes>]' or end with '*' for category-less tasks")
+            raise ValueError(
+                "Task string must be in the format '<short-category> : <task-name> [: <task-notes>]' or end with '*' for category-less tasks"
+            )
 
     # Build a mapping from short symbol to full category name
-    short_to_full = {v['short']: k for k, v in categories.items() if 'short' in v}
+    short_to_full = {v["short"]: k for k, v in categories.items() if "short" in v}
 
     # Replace short symbol with full category name if possible, else raise error
     if input_category in short_to_full:

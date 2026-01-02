@@ -4,6 +4,7 @@ import datetime
 import json
 from punch.tasks import read_tasklog
 
+
 def export_json(tasks_file, date_from, date_to):
     """
     Export all tasks as a JSON string (list of dicts, one per entry) between date_from and date_to (inclusive).
@@ -22,14 +23,17 @@ def export_json(tasks_file, date_from, date_to):
             continue
         if entry.task.endswith("**"):
             continue
-        exported.append({
-            "category": entry.category,
-            "task": entry.task,
-            "notes": entry.notes,
-            "finish": entry.finish.isoformat(),
-            "duration_minutes": int(entry.duration.total_seconds() // 60),
-        })
+        exported.append(
+            {
+                "category": entry.category,
+                "task": entry.task,
+                "notes": entry.notes,
+                "finish": entry.finish.isoformat(),
+                "duration_minutes": int(entry.duration.total_seconds() // 60),
+            }
+        )
     return json.dumps(exported, indent=2)
+
 
 def export_csv(tasks_file, date_from, date_to):
     """
@@ -53,11 +57,13 @@ def export_csv(tasks_file, date_from, date_to):
             continue
         if entry.task.endswith("**"):
             continue
-        writer.writerow([
-            entry.category,
-            entry.task,
-            entry.notes,
-            entry.finish.isoformat(),
-            int(entry.duration.total_seconds() // 60)
-        ])
+        writer.writerow(
+            [
+                entry.category,
+                entry.task,
+                entry.notes,
+                entry.finish.isoformat(),
+                int(entry.duration.total_seconds() // 60),
+            ]
+        )
     return output.getvalue()

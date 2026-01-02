@@ -1,6 +1,5 @@
 from datetime import datetime, timedelta
 import os
-import re
 import sys
 from rich.console import Console
 from rich.tree import Tree
@@ -9,39 +8,52 @@ import yaml
 
 from playwright.sync_api import TimeoutError
 
-from punch.config import set_config_value
 from punch.export import export_csv, export_json
 from punch.report import generate_report
-from punch.tasks import CMDLINE_SEPARATOR, parse_new_task_string, write_task
-from punch.web import DRY_RUN_SUFFIX, AuthFileNotFoundError, MissingTimecardsUrl, NoCaseMappingError, get_timecards, login_to_site, submit_timecards
+from punch.tasks import parse_new_task_string, write_task
+from punch.web import (
+    DRY_RUN_SUFFIX,
+    AuthFileNotFoundError,
+    MissingTimecardsUrl,
+    NoCaseMappingError,
+    get_timecards,
+    login_to_site,
+    submit_timecards,
+)
 
-    
+
 def time_to_current_datetime(time_str: str) -> datetime:
     """Combine the current date with a given time string (HH:MM) to produce a datetime."""
     now = datetime.now()
     t = datetime.strptime(time_str, "%H:%M").time()
     return datetime.combine(now.date(), t)
 
+
 def show_config(config):
     """
     Pretty-print the loaded config as YAML.
     """
-    from rich.syntax import Syntax
 
     console = Console()
     yaml_str = yaml.dump(config, sort_keys=False, allow_unicode=True)
     syntax = Syntax(yaml_str, "yaml", theme="ansi_dark", line_numbers=False)
     console.print(syntax)
 
+
 def prompt_with_hint(console, prompt, current_value):
     """
     Prompt the user with a hint of the current value.
     Returns the new value or the current value if input is empty.
     """
-    value = console.input(f"{prompt}{f' [{current_value!r}]' if current_value else ''}: ").strip()
+    value = console.input(
+        f"{prompt}{f' [{current_value!r}]' if current_value else ''}: "
+    ).strip()
     return value if value else current_value
 
-def prompt_category(console, existing_short=None, existing_name=None, existing_caseid=None):
+
+def prompt_category(
+    console, existing_short=None, existing_name=None, existing_caseid=None
+):
     """
     Prompt for a single category's details.
     Returns (short, name, caseid) or (None, None, None) if user is done.
@@ -84,19 +96,25 @@ def prompt_category(console, existing_short=None, existing_name=None, existing_c
             console.print("[red]Case id must be a number or empty.[/red]")
     return short, name, caseid
 
+
 def print_existing_categories(console, categories):
     if categories:
         console.print("[yellow]Existing categories:[/yellow]")
         for name, cat in categories.items():
             short = cat.get("short", "")
             caseid = cat.get("caseid", "")
-            console.print(f"  [cyan]{short}[/cyan]: {name}" + (f" (caseid: {caseid})" if caseid else ""))
+            console.print(
+                f"  [cyan]{short}[/cyan]: {name}"
+                + (f" (caseid: {caseid})" if caseid else "")
+            )
+
 
 def run_config_wizard(config, config_path):
     """
     Interactively prompt the user for config values and update the config file.
     """
     from ruamel.yaml import YAML
+
     yaml_ruamel = YAML()
     yaml_ruamel.preserve_quotes = True
 
@@ -105,17 +123,25 @@ def run_config_wizard(config, config_path):
 
     # Full name
     current_full_name = config.get("full_name", "")
-    config["full_name"] = prompt_with_hint(console, "Enter your full name", current_full_name)
+    config["full_name"] = prompt_with_hint(
+        console, "Enter your full name", current_full_name
+    )
 
     # Timecards submissions link
     current_url = config.get("timecards_url", "")
-    config["timecards_url"] = prompt_with_hint(console, "Enter the new timecard link (URL)", current_url)
+    config["timecards_url"] = prompt_with_hint(
+        console, "Enter the new timecard link (URL)", current_url
+    )
 
     date_format = config.get("date_format", "%d/%m/%Y")
-    config["date_format"] = prompt_with_hint(console, "Enter the timecard date format", date_format)
+    config["date_format"] = prompt_with_hint(
+        console, "Enter the timecard date format", date_format
+    )
 
     time_format = config.get("time_format", "%H:%M")
-    config["time_format"] = prompt_with_hint(console, "Enter the timecard time format", time_format)
+    config["time_format"] = prompt_with_hint(
+        console, "Enter the timecard time format", time_format
+    )
 
     # Timecards rounding
     current_round = config.get("timecards_round", 0)
@@ -123,7 +149,7 @@ def run_config_wizard(config, config_path):
         round_str = prompt_with_hint(
             console,
             "Round tracked time to nearest <X> minutes (set to 0 to disable rounding)",
-            current_round
+            current_round,
         )
         try:
             config["timecards_round"] = int(round_str)
@@ -143,7 +169,9 @@ def run_config_wizard(config, config_path):
             if name:
                 categories[name] = cat
 
-    console.print("Let's add your categories. Enter each category's details. Leave short code empty to finish.")
+    console.print(
+        "Let's add your categories. Enter each category's details. Leave short code empty to finish."
+    )
     print_existing_categories(console, categories)
 
     # Add new categories, don't replace existing
@@ -183,18 +211,22 @@ def run_config_wizard(config, config_path):
 
     console.print(f"[bold green]Configuration saved to {config_path}[/bold green]")
 
+
 def handle_start(args, tasks_file):
     start_dt = args.time
     write_task(tasks_file, "", "start", "", start_dt)
 
+
 def handle_help(parser):
     parser.print_help()
 
+
 def get_category_by_short(categories, arg_str):
     for cat in categories:
-        if categories[cat]['short'] == arg_str:
+        if categories[cat]["short"] == arg_str:
             return cat, categories[cat]
     return None, None
+
 
 def handle_add(args, categories, tasks_file, console):
     task_str = args.task_str
@@ -207,6 +239,7 @@ def handle_add(args, categories, tasks_file, console):
     except ValueError as e:
         console.print(f"Error: {e}")
         sys.exit(1)
+
 
 def print_report(report):
     """
@@ -255,7 +288,7 @@ def print_report(report):
             hours = int(duration.total_seconds() // 3600)
             minutes = int((duration.total_seconds() % 3600) // 60)
             duration_str = f"{hours}:{minutes:02d}"
-            line = f"{left.ljust(max_left_len)} {duration_str.rjust(10)} ({minutes + hours*60} min)"
+            line = f"{left.ljust(max_left_len)} {duration_str.rjust(10)} ({minutes + hours * 60} min)"
             cat_node.add(line)
             total_duration += duration
 
@@ -264,30 +297,35 @@ def print_report(report):
     remainder_minutes = total_minutes % 60
     # Print total as H:MM (not days)
     total_str = f"{total_hours}:{remainder_minutes:02d}"
-    tree.add(f"[bold yellow]Total: {total_str.rjust(max_left_len+8)} ({total_minutes} min)[/bold yellow]")
+    tree.add(
+        f"[bold yellow]Total: {total_str.rjust(max_left_len + 8)} ({total_minutes} min)[/bold yellow]"
+    )
 
     console.print(tree)
+
 
 def handle_report(args, tasks_file, console):
     console.print(f"From: {getattr(args, 'from_')} To: {args.to}", style="bold blue")
     try:
-        report = generate_report(tasks_file, getattr(args, 'from_'), args.to)
+        report = generate_report(tasks_file, getattr(args, "from_"), args.to)
         print_report(report)
     except ValueError as e:
         console.print(f"Error generating report: {e}", style="bold red")
 
+
 def handle_export(args, tasks_file, console):
     exported_content = None
     if args.format == "json":
-        exported_content = export_json(tasks_file, getattr(args, 'from_'), args.to)
+        exported_content = export_json(tasks_file, getattr(args, "from_"), args.to)
     elif args.format == "csv":
-        exported_content = export_csv(tasks_file, getattr(args, 'from_'), args.to)
+        exported_content = export_csv(tasks_file, getattr(args, "from_"), args.to)
     if args.output:
         with open(args.output, "w") as f:
             f.write(exported_content)
         console.print(f"Exported to {args.output}", style="bold green")
     else:
         console.print(exported_content)
+
 
 def handle_login(args, config, console):
     try:
@@ -296,19 +334,24 @@ def handle_login(args, config, console):
         console.print(f"[red]{e}[/red]")
         sys.exit(1)
 
+
 def show_timecards_table(timecards):
     """
     Display the timecards in a table format using rich.
     """
     from rich.table import Table
     from rich.console import Console
-    
+
     console = Console()
     table = Table(title="Timecards for submission", show_footer=True)
 
     table.add_column("Case no.", justify="center", style="cyan")
-    table.add_column("Task", justify="left", style="magenta", max_width=50, no_wrap=True)
-    table.add_column("Work performed", justify="left", style="green", max_width=50, no_wrap=True)
+    table.add_column(
+        "Task", justify="left", style="magenta", max_width=50, no_wrap=True
+    )
+    table.add_column(
+        "Work performed", justify="left", style="green", max_width=50, no_wrap=True
+    )
     table.add_column("Minutes", justify="right", style="yellow")
     table.add_column("Start time", justify="right", style="blue")
 
@@ -332,6 +375,7 @@ def show_timecards_table(timecards):
 
     console.print(table)
 
+
 def handle_submit(args, config, tasks_file, console):
     try:
         if args.interactive:
@@ -339,9 +383,13 @@ def handle_submit(args, config, tasks_file, console):
 
         timecards = []
         try:
-            timecards = get_timecards(config, tasks_file, getattr(args, 'from_'), args.to)
-        except AuthFileNotFoundError as e:
-            console.print("[red]Auth info file not found. Please login first using the 'login' command.[/red]")
+            timecards = get_timecards(
+                config, tasks_file, getattr(args, "from_"), args.to
+            )
+        except AuthFileNotFoundError:
+            console.print(
+                "[red]Auth info file not found. Please login first using the 'login' command.[/red]"
+            )
             return
         except NoCaseMappingError as e:
             console.print(f"[red]{e}[/red]")
@@ -351,9 +399,11 @@ def handle_submit(args, config, tasks_file, console):
             console.print("No timecards found for submission.", style="bold red")
             return
         show_timecards_table(timecards)
-        
+
         suffix = DRY_RUN_SUFFIX if args.dry_run else ""
-        proceed = console.input(f"Proceed with submission?{suffix} (y/N): ").strip().lower()
+        proceed = (
+            console.input(f"Proceed with submission?{suffix} (y/N): ").strip().lower()
+        )
         if proceed != "y":
             console.print("Submission cancelled.", style="bold yellow")
             return
@@ -365,11 +415,13 @@ def handle_submit(args, config, tasks_file, console):
             interactive=args.interactive,
             dry_run=args.dry_run,
             verbose=args.verbose,
-            sleep=args.sleep
+            sleep=args.sleep,
         )
 
     except TimeoutError:
-        console.print("[red]Submission timed out. Please retry logging in with `punch login`[/red]")
+        console.print(
+            "[red]Submission timed out. Please retry logging in with `punch login`[/red]"
+        )
         sys.exit(1)
 
     except MissingTimecardsUrl as e:

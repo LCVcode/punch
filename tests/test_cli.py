@@ -3,6 +3,7 @@ from datetime import date, timedelta
 from punch.ui.cli import resolve_date_range
 import typer
 
+
 class TestResolveDateRange(unittest.TestCase):
     def test_day_only(self):
         # Only day provided, from and to should match day
@@ -17,7 +18,9 @@ class TestResolveDateRange(unittest.TestCase):
         f = (date.today() - timedelta(days=2)).strftime("%Y-%m-%d")
         day, from_, to_ = resolve_date_range(None, f, None)
         self.assertIsNone(day)
-        self.assertEqual(from_.strftime("%Y-%m-%d"), f"{date.today() - timedelta(days=2)}")
+        self.assertEqual(
+            from_.strftime("%Y-%m-%d"), f"{date.today() - timedelta(days=2)}"
+        )
         self.assertEqual(to_, date.today())
 
     def test_from_and_to(self):
@@ -26,8 +29,12 @@ class TestResolveDateRange(unittest.TestCase):
         t = (date.today() - timedelta(days=2)).strftime("%Y-%m-%d")
         day, from_, to_ = resolve_date_range(None, f, t)
         self.assertIsNone(day)
-        self.assertEqual(from_.strftime("%Y-%m-%d"), f"{date.today() - timedelta(days=5)}")
-        self.assertEqual(to_.strftime("%Y-%m-%d"), f"{date.today() - timedelta(days=2)}")
+        self.assertEqual(
+            from_.strftime("%Y-%m-%d"), f"{date.today() - timedelta(days=5)}"
+        )
+        self.assertEqual(
+            to_.strftime("%Y-%m-%d"), f"{date.today() - timedelta(days=2)}"
+        )
 
     def test_day_and_from(self):
         # Both day and from provided, should raise
@@ -55,6 +62,7 @@ class TestResolveDateRange(unittest.TestCase):
         self.assertEqual(day, date.today())
         self.assertEqual(from_, date.today())
         self.assertEqual(to_, date.today())
+
 
 if __name__ == "__main__":
     unittest.main()

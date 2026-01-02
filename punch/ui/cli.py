@@ -7,15 +7,22 @@ from pathlib import Path
 import sys
 from types import SimpleNamespace
 from typing import Optional
-from unittest import result
 import typer
 import dateparser
-import yaml
 from rich.console import Console
 
-from punch.commands import get_category_by_short, handle_add, handle_export, handle_help, handle_login, handle_report, handle_start, handle_submit, time_to_current_datetime
+from punch.commands import (
+    get_category_by_short,
+    handle_add,
+    handle_export,
+    handle_login,
+    handle_report,
+    handle_start,
+    handle_submit,
+    time_to_current_datetime,
+)
 from punch.config import get_config_path, get_tasks_file, load_config
-from punch.tasks import CMDLINE_SEPARATOR, escape_separators, get_recent_tasks, split_unescaped, write_task
+from punch.tasks import CMDLINE_SEPARATOR, escape_separators, split_unescaped
 from punch.ui.interactive import run_interactive_mode
 from punch import __version__, _DISTRIBUTION
 
@@ -23,7 +30,19 @@ app = typer.Typer(help="punch - a CLI tool for managing your tasks")
 config_app = typer.Typer(help="Manage configuration options.")
 app.add_typer(config_app, name="config")
 
-HUMAN_DATE_SHORTCUTS = ["today", "yesterday", "tomorrow", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+HUMAN_DATE_SHORTCUTS = [
+    "today",
+    "yesterday",
+    "tomorrow",
+    "monday",
+    "tuesday",
+    "wednesday",
+    "thursday",
+    "friday",
+    "saturday",
+    "sunday",
+]
+
 
 def find_matching_in_shortcuts(value: str) -> Optional[str]:
     result = []
@@ -33,16 +52,19 @@ def find_matching_in_shortcuts(value: str) -> Optional[str]:
             result.append(shortcut)
 
     if len(result) > 1:
-        raise typer.BadParameter(f"Ambiguous date shortcut: {value!r} matches {', '.join(result)}")
-    
+        raise typer.BadParameter(
+            f"Ambiguous date shortcut: {value!r} matches {', '.join(result)}"
+        )
+
     return result[0] if result else None
+
 
 def check_human_date(value: str) -> str:
     if not value:
         return ""
-    
+
     mapping = find_matching_in_shortcuts(value)
-    
+
     value = mapping if mapping else value
     try:
         dt = dateparser.parse(value)
@@ -51,7 +73,8 @@ def check_human_date(value: str) -> str:
         return dt.date().strftime("%x")
     except Exception as e:
         raise typer.BadParameter(f"Invalid date format: {value!r}") from e
-    
+
+
 def human_date(value: str) -> date:
     try:
         dt = dateparser.parse(value)
@@ -61,6 +84,7 @@ def human_date(value: str) -> date:
     except Exception as e:
         raise typer.BadParameter(f"Invalid date format: {value!r}") from e
 
+
 def check_valid_date(date_str: str) -> str:
     if not date_str:
         return ""
@@ -68,12 +92,14 @@ def check_valid_date(date_str: str) -> str:
         return datetime.strptime(date_str, "%Y-%m-%d").date().strftime("%Y-%m-%d")
     except ValueError:
         raise typer.BadParameter("Invalid date format. Use YYYY-MM-DD.")
-    
+
+
 def valid_date(date_str: str) -> date:
     try:
         return datetime.strptime(date_str, "%Y-%m-%d").date()
     except ValueError:
         raise typer.BadParameter("Invalid date format. Use YYYY-MM-DD.")
+
 
 def select_from_list(console, items, prompt, style="bold yellow"):
     for idx, item in enumerate(items):
@@ -88,9 +114,11 @@ def select_from_list(console, items, prompt, style="bold yellow"):
         console.print("Invalid input. Please enter a number.", style="bold red")
         return None
 
+
 def interactive_mode(categories, tasks_file, selected_category=None):
     """Launch the interactive Textual interface for task entry."""
     run_interactive_mode(categories, tasks_file, selected_category)
+
 
 def read_changelog() -> str:
     snap = os.getenv("SNAP")
@@ -99,16 +127,20 @@ def read_changelog() -> str:
         if p.exists():
             return p.read_text(encoding="utf-8")
     # fallback: jeśli dodałeś też include = ["CHANGELOG.md"] w Poetry
-    from importlib.resources import files
     return (files("punch").parent / "CHANGELOG.md").read_text(encoding="utf-8")
 
+
 def current_version() -> str:
-    return os.getenv("SNAP_VERSION") or (version(_DISTRIBUTION) if not os.getenv("SNAP") else "0.0.0")
+    return os.getenv("SNAP_VERSION") or (
+        version(_DISTRIBUTION) if not os.getenv("SNAP") else "0.0.0"
+    )
+
 
 def user_state_path() -> Path:
     base = Path(os.getenv("SNAP_USER_DATA") or Path.home() / ".config" / _DISTRIBUTION)
     base.mkdir(parents=True, exist_ok=True)
     return base / "state.json"
+
 
 def load_state():
     p = user_state_path()
@@ -119,8 +151,10 @@ def load_state():
             return {}
     return {}
 
+
 def save_state(state):
     user_state_path().write_text(json.dumps(state))
+
 
 def should_show_news(cv: str) -> bool:
     if not sys.stdout.isatty():
@@ -130,13 +164,18 @@ def should_show_news(cv: str) -> bool:
     st = load_state()
     return st.get("last_seen_version") != cv
 
+
 def mark_seen(cv: str):
     st = load_state()
     st["last_seen_version"] = cv
     save_state(st)
 
+
 def show_teaser(cv: str):
-    typer.secho(f"🔹 New version: {cv}. Try '{_DISTRIBUTION} whats-new' to read more.", dim=True)
+    typer.secho(
+        f"🔹 New version: {cv}. Try '{_DISTRIBUTION} whats-new' to read more.", dim=True
+    )
+
 
 @app.callback(invoke_without_command=True)
 def main_callback(ctx: typer.Context):
@@ -155,49 +194,69 @@ def main_callback(ctx: typer.Context):
             f.write("categories: []\n")
     config = load_config(config_path)
     tasks_file = get_tasks_file()
-    categories = config.get('categories', [])
+    categories = config.get("categories", [])
 
     if ctx.invoked_subcommand is None:
         interactive_mode(categories, tasks_file)
         raise typer.Exit()
 
+
 @app.command()
 def start(
-    time: str = typer.Option(None, "-t", "--time", help="Specify the start time (HH:MM)"),
-    verbose: bool = typer.Option(False, "-v", "--verbose", help="Enable verbose output"),
+    time: str = typer.Option(
+        None, "-t", "--time", help="Specify the start time (HH:MM)"
+    ),
+    verbose: bool = typer.Option(
+        False, "-v", "--verbose", help="Enable verbose output"
+    ),
 ):
     """
     Mark the start of your day.
     """
     tasks_file = get_tasks_file()
-    
-    handle_start(SimpleNamespace(time=time_to_current_datetime(time) if time else None, verbose=verbose), tasks_file)
+
+    handle_start(
+        SimpleNamespace(
+            time=time_to_current_datetime(time) if time else None, verbose=verbose
+        ),
+        tasks_file,
+    )
+
 
 @app.command()
 def add(
-    time: str = typer.Option(None, "-t", "--time", help="Specify the start time (HH:MM)"),
-    task_args: list[str] = typer.Argument(..., help="<category> : <task> [: <notes>] (e.g. c : Task name : Notes)"),
-    verbose: bool = typer.Option(False, "-v", "--verbose", help="Enable verbose output"),
+    time: str = typer.Option(
+        None, "-t", "--time", help="Specify the start time (HH:MM)"
+    ),
+    task_args: list[str] = typer.Argument(
+        ..., help="<category> : <task> [: <notes>] (e.g. c : Task name : Notes)"
+    ),
+    verbose: bool = typer.Option(
+        False, "-v", "--verbose", help="Enable verbose output"
+    ),
 ):
     """
     Add a new task.
     """
     config = load_config(get_config_path())
-    categories = config.get('categories', {})
+    categories = config.get("categories", {})
     tasks_file = get_tasks_file()
     console = Console()
 
     task_str = " ".join([escape_separators(s) for s in task_args])
 
     match split_unescaped(task_str, CMDLINE_SEPARATOR):
-        case [cat, task, *notes] if cat and task:
-                handle_add(
-                    SimpleNamespace(task_str=task_str, verbose=verbose,
-                                    time=time_to_current_datetime(time) if time else None),
-                    categories,
-                    tasks_file,
-                    console
-                )
+        case [cat, task, *_] if cat and task:
+            handle_add(
+                SimpleNamespace(
+                    task_str=task_str,
+                    verbose=verbose,
+                    time=time_to_current_datetime(time) if time else None,
+                ),
+                categories,
+                tasks_file,
+                console,
+            )
         case [cat]:
             name, cat = get_category_by_short(categories, cat)
             if cat:
@@ -205,15 +264,23 @@ def add(
                 return
             else:
                 handle_add(
-                    SimpleNamespace(task_str=task_str, verbose=verbose,
-                                    time=time_to_current_datetime(time) if time else None),
+                    SimpleNamespace(
+                        task_str=task_str,
+                        verbose=verbose,
+                        time=time_to_current_datetime(time) if time else None,
+                    ),
                     categories,
                     tasks_file,
-                    console
+                    console,
                 )
 
 
-def resolve_date_range(day: Optional[str], from_date: Optional[str], to_date: Optional[str], ctx_name: str = "report"):
+def resolve_date_range(
+    day: Optional[str],
+    from_date: Optional[str],
+    to_date: Optional[str],
+    ctx_name: str = "report",
+):
     """
     Validate and resolve day/from_date/to_date logic for report/export/submit commands.
     Returns (day, from_date, to_date) as date objects.
@@ -221,12 +288,18 @@ def resolve_date_range(day: Optional[str], from_date: Optional[str], to_date: Op
     """
     # Mutual exclusivity
     if day and (from_date or to_date):
-        typer.secho(f"Use either --day OR --from/--to, not both in {ctx_name}.", fg=typer.colors.RED)
+        typer.secho(
+            f"Use either --day OR --from/--to, not both in {ctx_name}.",
+            fg=typer.colors.RED,
+        )
         raise typer.Exit(code=1)
 
     # Range rules
     if to_date and not from_date:
-        typer.secho(f"If you pass --to, you must also pass --from in {ctx_name}.", fg=typer.colors.RED)
+        typer.secho(
+            f"If you pass --to, you must also pass --from in {ctx_name}.",
+            fg=typer.colors.RED,
+        )
         raise typer.Exit(code=1)
 
     # Convert to date objects
@@ -242,57 +315,108 @@ def resolve_date_range(day: Optional[str], from_date: Optional[str], to_date: Op
         from_obj = to_obj = day_obj
     elif from_obj and not to_obj:
         to_obj = date.today()
-    
+
     if not day_obj and not from_obj and not to_obj:
         day_obj = from_obj = to_obj = date.today()
 
     return day_obj, from_obj, to_obj
 
+
 @app.command()
 def report(
     day: Optional[str] = typer.Option(
-        None, "-d", "--day", help="Generate report for a single day",
-        callback=check_human_date
+        None,
+        "-d",
+        "--day",
+        help="Generate report for a single day",
+        callback=check_human_date,
     ),
     from_date: Optional[str] = typer.Option(
-        None, "-f", "--from", help="Start date for the report.",
-        callback=check_valid_date
+        None,
+        "-f",
+        "--from",
+        help="Start date for the report.",
+        callback=check_valid_date,
     ),
     to_date: Optional[str] = typer.Option(
-        None, "-t", "--to", help="End date for the report (defaults to today if --from is given).",
-        callback=check_valid_date
+        None,
+        "-t",
+        "--to",
+        help="End date for the report (defaults to today if --from is given).",
+        callback=check_valid_date,
     ),
 ):
     """
     Show report for a specific day or date range.
     """
-    day_obj, from_obj, to_obj = resolve_date_range(day, from_date, to_date, ctx_name="report")
+    day_obj, from_obj, to_obj = resolve_date_range(
+        day, from_date, to_date, ctx_name="report"
+    )
     parser_args = SimpleNamespace(day=day_obj, from_=from_obj, to=to_obj)
     tasks_file = get_tasks_file()
     console = Console()
     handle_report(parser_args, tasks_file, console)
 
+
 @app.command()
 def export(
-    day: str = typer.Option(None, "-d", "--day", help="Specify a single day for the report (sets --from and --to to this date)", callback=check_human_date),
-    from_: str = typer.Option(None, "-f", "--from", help="Specify the start date for the export (YYYY-MM-DD)", callback=check_valid_date),
-    to: str = typer.Option(None, "-t", "--to", help="Specify the end date for the export (YYYY-MM-DD)", callback=check_valid_date),
-    format: str = typer.Option("json", "--format", help="Specify the format for export", show_choices=True, case_sensitive=False),
-    output: str = typer.Option(None, "-o", "--output", help="Specify the output file for export"),
-    verbose: bool = typer.Option(False, "-v", "--verbose", help="Enable verbose output"),
+    day: str = typer.Option(
+        None,
+        "-d",
+        "--day",
+        help="Specify a single day for the report (sets --from and --to to this date)",
+        callback=check_human_date,
+    ),
+    from_: str = typer.Option(
+        None,
+        "-f",
+        "--from",
+        help="Specify the start date for the export (YYYY-MM-DD)",
+        callback=check_valid_date,
+    ),
+    to: str = typer.Option(
+        None,
+        "-t",
+        "--to",
+        help="Specify the end date for the export (YYYY-MM-DD)",
+        callback=check_valid_date,
+    ),
+    format: str = typer.Option(
+        "json",
+        "--format",
+        help="Specify the format for export",
+        show_choices=True,
+        case_sensitive=False,
+    ),
+    output: str = typer.Option(
+        None, "-o", "--output", help="Specify the output file for export"
+    ),
+    verbose: bool = typer.Option(
+        False, "-v", "--verbose", help="Enable verbose output"
+    ),
 ):
     """
     Export tasks for a specific day or date range.
     """
     day_obj, from_obj, to_obj = resolve_date_range(day, from_, to, ctx_name="export")
-    parser_args = SimpleNamespace(day=day_obj, from_=from_obj, to=to_obj, format=format, output=output, verbose=verbose)
+    parser_args = SimpleNamespace(
+        day=day_obj,
+        from_=from_obj,
+        to=to_obj,
+        format=format,
+        output=output,
+        verbose=verbose,
+    )
     tasks_file = get_tasks_file()
     console = Console()
     handle_export(parser_args, tasks_file, console)
 
+
 @app.command()
 def login(
-    verbose: bool = typer.Option(False, "-v", "--verbose", help="Enable verbose output"),
+    verbose: bool = typer.Option(
+        False, "-v", "--verbose", help="Enable verbose output"
+    ),
 ):
     """
     Log in to SF and store your session locally.
@@ -301,71 +425,126 @@ def login(
     console = Console()
     handle_login(SimpleNamespace(verbose=verbose), config, console)
 
+
 @app.command()
 def submit(
-    day: str = typer.Option(None, "-d", "--day", help="Specify a single day for the report (sets --from and --to to this date)", callback=check_human_date),
-    from_: str = typer.Option(None, "-f", "--from", help="Specify the start date for the submission (YYYY-MM-DD)", callback=check_valid_date),
-    to: str = typer.Option(None, "-t", "--to", help="Specify the end date for the submission (YYYY-MM-DD)", callback=check_valid_date),
-    dry_run: bool = typer.Option(False, "-n", "--dry-run", help="Perform a dry run of the submission"),
-    headed: bool = typer.Option(False, "--headed", help="Run the browser in headed mode"),
-    interactive: bool = typer.Option(False, "-i", "--interactive", help="Run in interactive mode (implies --headed)"),
-    sleep: float = typer.Option(0, "--sleep", help="Sleep for X seconds after filling out the form"),
-    verbose: bool = typer.Option(False, "-v", "--verbose", help="Enable verbose output"),
+    day: str = typer.Option(
+        None,
+        "-d",
+        "--day",
+        help="Specify a single day for the report (sets --from and --to to this date)",
+        callback=check_human_date,
+    ),
+    from_: str = typer.Option(
+        None,
+        "-f",
+        "--from",
+        help="Specify the start date for the submission (YYYY-MM-DD)",
+        callback=check_valid_date,
+    ),
+    to: str = typer.Option(
+        None,
+        "-t",
+        "--to",
+        help="Specify the end date for the submission (YYYY-MM-DD)",
+        callback=check_valid_date,
+    ),
+    dry_run: bool = typer.Option(
+        False, "-n", "--dry-run", help="Perform a dry run of the submission"
+    ),
+    headed: bool = typer.Option(
+        False, "--headed", help="Run the browser in headed mode"
+    ),
+    interactive: bool = typer.Option(
+        False, "-i", "--interactive", help="Run in interactive mode (implies --headed)"
+    ),
+    sleep: float = typer.Option(
+        0, "--sleep", help="Sleep for X seconds after filling out the form"
+    ),
+    verbose: bool = typer.Option(
+        False, "-v", "--verbose", help="Enable verbose output"
+    ),
 ):
     """
     Submit timecards for a specific day or date range to SF.
     """
     day_obj, from_obj, to_obj = resolve_date_range(day, from_, to, ctx_name="submit")
-    parser_args = SimpleNamespace(day=day_obj, from_=from_obj, to=to_obj, dry_run=dry_run, headed=headed, interactive=interactive, sleep=sleep, verbose=verbose)
+    parser_args = SimpleNamespace(
+        day=day_obj,
+        from_=from_obj,
+        to=to_obj,
+        dry_run=dry_run,
+        headed=headed,
+        interactive=interactive,
+        sleep=sleep,
+        verbose=verbose,
+    )
     config = load_config(get_config_path())
     tasks_file = get_tasks_file()
     console = Console()
     handle_submit(parser_args, config, tasks_file, console)
 
+
 @config_app.command("show")
 def config_show(
-    verbose: bool = typer.Option(False, "-v", "--verbose", help="Enable verbose output"),
+    verbose: bool = typer.Option(
+        False, "-v", "--verbose", help="Enable verbose output"
+    ),
 ):
     """Show the current configuration."""
     config_path = get_config_path()
     config_data = load_config(config_path)
-    console = Console()
+    _ = Console()
     from punch.commands import show_config
+
     show_config(config_data)
+
 
 @config_app.command("edit")
 def config_edit(
-    verbose: bool = typer.Option(False, "-v", "--verbose", help="Enable verbose output"),
+    verbose: bool = typer.Option(
+        False, "-v", "--verbose", help="Enable verbose output"
+    ),
 ):
     """Edit the configuration file in $EDITOR."""
     config_path = get_config_path()
     os.system(f"{os.getenv('EDITOR', 'vi')} {config_path}")
 
+
 @config_app.command("path")
 def config_path_cmd(
-    verbose: bool = typer.Option(False, "-v", "--verbose", help="Enable verbose output"),
+    verbose: bool = typer.Option(
+        False, "-v", "--verbose", help="Enable verbose output"
+    ),
 ):
     """Show the path to the configuration file."""
     config_path = get_config_path()
     typer.echo(config_path)
 
+
 @config_app.command("set")
 def config_set(
     option: str = typer.Argument(..., help="Option name to set"),
     value: str = typer.Argument(..., help="Value to set"),
-    verbose: bool = typer.Option(False, "-v", "--verbose", help="Enable verbose output"),
+    verbose: bool = typer.Option(
+        False, "-v", "--verbose", help="Enable verbose output"
+    ),
 ):
     """Set a configuration value."""
     config_path = get_config_path()
     config_data = load_config(config_path)
     from punch.config import set_config_value
+
     set_config_value(config_data, config_path, option, value)
     typer.echo(f"Set {option} to {value}")
+
 
 @config_app.command("get")
 def config_get(
     option: str = typer.Argument(..., help="Option name to get"),
-    verbose: bool = typer.Option(False, "-v", "--verbose", help="Enable verbose output"),
+    verbose: bool = typer.Option(
+        False, "-v", "--verbose", help="Enable verbose output"
+    ),
 ):
     """Get a configuration value."""
     config_path = get_config_path()
@@ -376,15 +555,21 @@ def config_get(
     else:
         typer.echo(f"Key '{option}' not found in config.")
 
+
 @config_app.command("wizard")
 def config_wizard(
-    verbose: bool = typer.Option(False, "-v", "--verbose", help="Enable verbose output"),
+    verbose: bool = typer.Option(
+        False, "-v", "--verbose", help="Enable verbose output"
+    ),
 ):
     """Run the interactive configuration wizard."""
     config_path = get_config_path()
     config_data = load_config(config_path)
     from punch.commands import run_config_wizard
+
     run_config_wizard(config_data, config_path)
+
+
 @app.command("help")
 def help_cmd(
     ctx: typer.Context,
@@ -409,14 +594,21 @@ def help_cmd(
         info_parts.append(name)
         target = cmd.get_command(ctx.parent, name)  # click API
         if target is None:
-            typer.secho(f"Unknown command: {' '.join(info_parts)}", fg=typer.colors.RED, err=True)
+            typer.secho(
+                f"Unknown command: {' '.join(info_parts)}",
+                fg=typer.colors.RED,
+                err=True,
+            )
             raise typer.Exit(code=2)
         cmd = target  # descend
 
     # Show help for the resolved command
-    with typer.Context(target, info_name=" ".join(info_parts), parent=ctx.parent) as subctx:
+    with typer.Context(
+        target, info_name=" ".join(info_parts), parent=ctx.parent
+    ) as subctx:
         typer.echo(target.get_help(subctx))
     raise typer.Exit()
+
 
 @app.command("whats-new")
 def whats_new():
@@ -439,8 +631,9 @@ def whats_new():
             if copy:
                 out.append(line)
         text = "\n".join(out) or f"Version not found ini changelog: {current_ver}."
-    
+
     console.print(text)
+
 
 if __name__ == "__main__":
     app()

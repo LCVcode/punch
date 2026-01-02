@@ -1,7 +1,6 @@
-from rich.tree import Tree
-from rich.console import Console
 import datetime
 from punch.tasks import read_tasklog
+
 
 def generate_report(tasks_file, date_from, date_to, collapse=True):
     """
@@ -18,7 +17,8 @@ def generate_report(tasks_file, date_from, date_to, collapse=True):
     tasklog = read_tasklog(tasks_file)
     # Filter tasks in the date range and skip tasks with duration 0 or ending with **
     filtered = [
-        entry for entry in tasklog
+        entry
+        for entry in tasklog
         if date_from_dt <= entry.finish <= date_to_dt
         and entry.duration.total_seconds() > 0
         and not entry.task.endswith("**")
@@ -39,7 +39,10 @@ def generate_report(tasks_file, date_from, date_to, collapse=True):
                 if entry.task not in task_durations:
                     task_durations[entry.task] = datetime.timedelta(0)
                 task_durations[entry.task] += entry.duration
-            report[cat] = [(task, total_duration) for task, total_duration in sorted(task_durations.items())]
+            report[cat] = [
+                (task, total_duration)
+                for task, total_duration in sorted(task_durations.items())
+            ]
         else:
             report[cat] = []
             for entry in entries:

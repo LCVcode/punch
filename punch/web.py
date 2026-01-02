@@ -9,9 +9,9 @@ from rich.progress import Progress, BarColumn, TextColumn, TimeElapsedColumn
 from rich.console import Console
 import re
 from punch.config import get_config_path
-import sys
 
 DRY_RUN_SUFFIX = " (dry run)"
+
 
 @dataclass
 class TimecardEntry:
@@ -23,14 +23,18 @@ class TimecardEntry:
     work_performed: str
     desc: str
 
+
 class NoCaseMappingError(Exception):
     pass
+
 
 class MissingTimecardsUrl(Exception):
     pass
 
+
 class AuthFileNotFoundError(Exception):
     pass
+
 
 def get_timecards_link(config):
     """
@@ -38,8 +42,11 @@ def get_timecards_link(config):
     """
     url = config.get("timecards_url")
     if not url:
-        raise MissingTimecardsUrl("No timecards_url found in config. Please set it in your config file.")
+        raise MissingTimecardsUrl(
+            "No timecards_url found in config. Please set it in your config file."
+        )
     return url
+
 
 def get_auth_json_path():
     config_path = get_config_path()
@@ -48,13 +55,16 @@ def get_auth_json_path():
     os.makedirs(auth_dir, exist_ok=True)
     return os.path.join(auth_dir, "auth.json")
 
+
 def log_redirects(request):
     from rich.console import Console
+
     console = Console()
     if request.redirected_from:
         console.print(
             f"[yellow]Redirected from[/yellow] [cyan]{request.redirected_from.url}[/cyan] [yellow]to[/yellow] [cyan]{request.url}[/cyan]"
         )
+
 
 def login_to_site(config, verbose=False):
     console = Console()
@@ -67,7 +77,9 @@ def login_to_site(config, verbose=False):
             console.print("[cyan]Loaded existing authentication from auth.json[/cyan]")
         else:
             context = browser.new_context()
-            console.print("[yellow]No auth.json found, starting fresh browser session[/yellow]")
+            console.print(
+                "[yellow]No auth.json found, starting fresh browser session[/yellow]"
+            )
         page = context.new_page()
         if verbose:
             page.on("request", log_redirects)
@@ -84,6 +96,7 @@ def login_to_site(config, verbose=False):
 
         browser.close()
 
+
 def select_from_combo(page, value, placeholder, xpath):
     """
     Select an item from a Lightning combobox by filling the input, clicking, and selecting the matching element.
@@ -94,10 +107,11 @@ def select_from_combo(page, value, placeholder, xpath):
     input_box.click()
     element = page.locator(xpath)
     element.wait_for(state="visible", timeout=10000)
-    
+
     element.click()
 
     time.sleep(1)
+
 
 def determine_case_number(config, entry):
     """
@@ -114,6 +128,7 @@ def determine_case_number(config, entry):
         return None
     caseid = str(cat_info["caseid"]).zfill(8)
     return caseid
+
 
 def extract_case_number(task):
     """
@@ -134,6 +149,7 @@ def extract_case_number(task):
         return match.group(1).zfill(8)
     return None
 
+
 def _convert_to_timecard(config, entry):
     case_no = determine_case_number(config, entry)
 
@@ -141,7 +157,9 @@ def _convert_to_timecard(config, entry):
     timecards_round = config.get("timecards_round", 0)
 
     if not full_name:
-        raise Exception("Full name not set in config file. Please add 'full_name' to your config.")
+        raise Exception(
+            "Full name not set in config file. Please add 'full_name' to your config."
+        )
 
     if not case_no:
         # if no case number mapping found try to extract it from the task
@@ -161,17 +179,20 @@ def _convert_to_timecard(config, entry):
     start_time = entry.finish - datetime.timedelta(minutes=duration)
 
     if not case_no:
-        raise NoCaseMappingError(f"No SF case mapping found for {entry.category} : {task_name_visual}")
+        raise NoCaseMappingError(
+            f"No SF case mapping found for {entry.category} : {task_name_visual}"
+        )
 
     return TimecardEntry(
-        case_no, 
-        full_name, 
-        duration, 
-        start_time.date(), 
-        start_time.time(), 
-        work_performed, 
-        task_name_visual
+        case_no,
+        full_name,
+        duration,
+        start_time.date(),
+        start_time.time(),
+        work_performed,
+        task_name_visual,
     )
+
 
 def get_timecards(config, file_path="tasks.txt", date_from=None, date_to=None):
     """
@@ -183,14 +204,23 @@ def get_timecards(config, file_path="tasks.txt", date_from=None, date_to=None):
         return []
     return [_convert_to_timecard(config, entry) for entry in entries]
 
-def submit_timecards(config, timecards, headless=True, interactive=False, dry_run=False, verbose=False, sleep=0.0):
+
+def submit_timecards(
+    config,
+    timecards,
+    headless=True,
+    interactive=False,
+    dry_run=False,
+    verbose=False,
+    sleep=0.0,
+):
     """
     Submits timecards for tasks between date_from and date_to (inclusive).
     date_from and date_to should be datetime.date objects or None (defaults to all).
     """
 
     console = Console()
-    
+
     if not timecards or len(timecards) == 0:
         console.print("[yellow]No timecards to submit.[/yellow]")
         return
@@ -204,31 +234,44 @@ def submit_timecards(config, timecards, headless=True, interactive=False, dry_ru
     suffix = DRY_RUN_SUFFIX if dry_run else ""
     with sync_playwright() as p:
         browser = p.firefox.launch(headless=headless)
-        context = _get_browser_context(browser, auth_json_path if Path(auth_json_path).exists() else None)
+        context = _get_browser_context(
+            browser, auth_json_path if Path(auth_json_path).exists() else None
+        )
         if context is None:
             return
 
         page = context.new_page()
         if verbose:
             page.on("request", log_redirects)
-        
+
         if _login_to_timecards(console, page, config):
-            console.print(f"[green]Login successful. Submitting timecards...[/green]{suffix}")
+            console.print(
+                f"[green]Login successful. Submitting timecards...[/green]{suffix}"
+            )
 
         try:
-            _submit_entries_with_progress(console, page, config, timecards, interactive, dry_run, sleep)
+            _submit_entries_with_progress(
+                console, page, config, timecards, interactive, dry_run, sleep
+            )
         except playwright_error:
-            console.print("[red]The browser window was closed before submission could complete.[/red]")
+            console.print(
+                "[red]The browser window was closed before submission could complete.[/red]"
+            )
             return
 
         if not interactive:
             _cancel_edit(page)
-            console.print(f"[bold green]Submitted {len(timecards)} entries.{suffix}[/bold green]")
+            console.print(
+                f"[bold green]Submitted {len(timecards)} entries.{suffix}[/bold green]"
+            )
             browser.close()
         else:
-            console.print("[yellow]Interactive mode enabled. Please review the entries before submitting.[/yellow]")
+            console.print(
+                "[yellow]Interactive mode enabled. Please review the entries before submitting.[/yellow]"
+            )
             console.print("[yellow]Close the browser window when done.[/yellow]")
             page.wait_for_event("close", timeout=0)
+
 
 def _get_browser_context(browser, auth_json_path):
     try:
@@ -236,13 +279,18 @@ def _get_browser_context(browser, auth_json_path):
         return context
     except FileNotFoundError:
         browser.close()
-        raise AuthFileNotFoundError("Auth file not found. Please login first using the 'login' command.")
+        raise AuthFileNotFoundError(
+            "Auth file not found. Please login first using the 'login' command."
+        )
+
 
 def _get_valid_entries(file_path, date_from=None, date_to=None):
     try:
         entries = read_tasklog(file_path)
     except FileNotFoundError:
-        raise AuthFileNotFoundError("Task file not found. Please login first using the 'login' command.")
+        raise AuthFileNotFoundError(
+            "Task file not found. Please login first using the 'login' command."
+        )
 
     # Filter by date range if provided
     if date_from or date_to:
@@ -255,16 +303,17 @@ def _get_valid_entries(file_path, date_from=None, date_to=None):
         else:
             date_to_dt = datetime.datetime.combine(date_to, datetime.time.max)
         entries = [
-            entry for entry in entries
-            if date_from_dt <= entry.finish <= date_to_dt
+            entry for entry in entries if date_from_dt <= entry.finish <= date_to_dt
         ]
 
     # Skip tasks with duration 0 or ending with **
     entries = [
-        entry for entry in entries
+        entry
+        for entry in entries
         if entry.duration.total_seconds() > 0 and not entry.task.endswith("**")
     ]
     return entries
+
 
 def _login_to_timecards(console, page, config):
     timecards_link = get_timecards_link(config)
@@ -280,14 +329,14 @@ def _reload_timecards(console, page, config):
     page.wait_for_url(timecards_link, timeout=30000)
 
 
-def _submit_entries_with_progress(console, page, config, timecards, interactive, dry_run=True, sleep=0.0):
-    from rich.progress import Progress, BarColumn, TextColumn, TimeElapsedColumn
-
+def _submit_entries_with_progress(
+    console, page, config, timecards, interactive, dry_run=True, sleep=0.0
+):
     PROGRESS_WIDTH = 30  # Constant for progress description width
 
     with Progress(
         TextColumn("{task.fields[desc]}", justify="left", style="white"),
-        BarColumn(bar_width=PROGRESS_WIDTH+10),
+        BarColumn(bar_width=PROGRESS_WIDTH + 10),
         TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
         TextColumn("[cyan]{task.fields[count]}", justify="right"),
         "•",
@@ -296,14 +345,20 @@ def _submit_entries_with_progress(console, page, config, timecards, interactive,
     ) as progress:
         total = len(timecards)
         task = progress.add_task(
-            "Submitting entries", total=total, desc="Submitting entries".ljust(PROGRESS_WIDTH), count=f"0/{total}"
+            "Submitting entries",
+            total=total,
+            desc="Submitting entries".ljust(PROGRESS_WIDTH),
+            count=f"0/{total}",
         )
         for idx, timecard in enumerate(timecards, 1):
-
             _fill_single_entry(config, page, timecard, interactive)
 
             desc = f"{timecard.desc} - {timecard.work_performed}"
-            desc = (desc[:PROGRESS_WIDTH-3] + "...") if len(desc) > PROGRESS_WIDTH else desc.ljust(PROGRESS_WIDTH)
+            desc = (
+                (desc[: PROGRESS_WIDTH - 3] + "...")
+                if len(desc) > PROGRESS_WIDTH
+                else desc.ljust(PROGRESS_WIDTH)
+            )
             progress.update(task, advance=0, desc=desc, count=f"{idx}/{total}")
 
             if sleep > 0:
@@ -328,6 +383,7 @@ def _submit_entries_with_progress(console, page, config, timecards, interactive,
             progress.update(task, advance=1, desc=desc, count=f"{idx}/{total}")
         progress.update(task, completed=total, count=f"{total}/{total}")
 
+
 def _fill_single_entry(config, page, timecard_entry, interactive):
     _fill_owner(page, timecard_entry.owner)
 
@@ -341,35 +397,43 @@ def _fill_single_entry(config, page, timecard_entry, interactive):
     time_str = timecard_entry.start_time.strftime(config.get("time_format", "%H:%M"))
     _fill_time(page, time_str)
 
+
 def _save_and_new(page):
     # page.locator('xpath=//lightning-button[button[@name="SaveAndNew"]]').click()
     page.get_by_role("button", name="Save & New").click()
 
+
 def _cancel_edit(page):
     page.get_by_role("button", name="Cancel", exact=True).click()
     # page.locator('xpath=//lightning-button[button[@name="CancelEdit"]]').click()
+
 
 def _fill_owner(page, value):
     placeholder = "Search People..."
     xpath = f'xpath=//lightning-base-combobox-formatted-text[@title="{value}"]'
     select_from_combo(page, value, placeholder, xpath)
 
+
 def _fill_case_number(page, value):
     placeholder = "Search Cases..."
     xpath = f'xpath=//lightning-base-combobox-formatted-text[@title="{value}"]'
     select_from_combo(page, value, placeholder, xpath)
 
+
 def _fill_description(page, value):
-    xpath = f"xpath=//textarea[@maxlength='255']"
+    xpath = "xpath=//textarea[@maxlength='255']"
     page.locator(xpath).fill(value)
 
+
 def _fill_duration(page, value):
-    xpath = f"xpath=//input[@name='TotalMinutesStatic__c']"
+    xpath = "xpath=//input[@name='TotalMinutesStatic__c']"
     page.locator(xpath).fill(value)
+
 
 def _fill_date(page, value):
     xpath = "xpath=//input[@name='StartTime__c' and not(@role='combobox')]"
     page.locator(xpath).fill(value)
+
 
 def _fill_time(page, value):
     xpath = "xpath=//input[@name='StartTime__c' and @role='combobox']"

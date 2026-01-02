@@ -1,5 +1,5 @@
-from punch.cli import main
+from punch.ui.cli import app
 
 
 if __name__ == "__main__":
-    main()
+    app()
